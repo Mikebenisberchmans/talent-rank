@@ -1,8 +1,23 @@
 # pipeline/semantic_scorer.py
 # Stage 3 — Local cross-encoder semantic scoring
-# No network, no API, CPU-only. Model must be pre-downloaded.
+# No network, no API, CPU-only.
+# Model is loaded from models/cross-encoder/ (saved by setup.py).
 
+import os
 from config.jd_config import JD_TEXT, SEMANTIC_MODEL
+
+# Path to the locally saved model (populated by setup.py)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+LOCAL_MODEL_PATH = os.path.join(_PROJECT_ROOT, "models", "cross-encoder")
+
+
+def _resolve_model_path() -> str:
+    """Use local model if setup.py has been run, else fall back to HF name."""
+    if os.path.isdir(LOCAL_MODEL_PATH) and os.listdir(LOCAL_MODEL_PATH):
+        return LOCAL_MODEL_PATH
+    print(f"  Warning: models/cross-encoder/ not found — loading from HuggingFace cache.")
+    print(f"  Run python setup.py first to save the model locally.")
+    return SEMANTIC_MODEL
 
 
 def _get_candidate_text(candidate: dict) -> str:
@@ -33,32 +48,22 @@ def _get_candidate_text(candidate: dict) -> str:
     return " ".join(parts)[:2000]
 
 
-def download_model_if_needed(model_name: str = SEMANTIC_MODEL) -> None:
-    """
-    Pre-download the model so ranking runs offline.
-    Call this once during setup — not during the timed ranking run.
-    """
-    from sentence_transformers import CrossEncoder
-    print(f"Downloading / verifying model: {model_name}")
-    CrossEncoder(model_name)
-    print("Model ready.")
-
-
 def run_semantic_scoring(scored_candidates: list, top_n: int = 500) -> list:
     """
     Stage 3 entry point.
     Runs cross-encoder on the top_n candidates by heuristic score.
-    Appends 'semantic_score' (0–100) to each score dict.
+    Appends 'semantic_score' (0-100) to each score dict.
     Candidates outside top_n get semantic_score = 0.
     """
     from sentence_transformers import CrossEncoder
     import numpy as np
 
-    top      = scored_candidates[:top_n]
-    rest     = scored_candidates[top_n:]
+    top  = scored_candidates[:top_n]
+    rest = scored_candidates[top_n:]
 
-    print(f"  Loading model: {SEMANTIC_MODEL}")
-    model = CrossEncoder(SEMANTIC_MODEL)
+    model_path = _resolve_model_path()
+    print(f"  Loading model from: {model_path}")
+    model = CrossEncoder(model_path)
 
     pairs = [
         (JD_TEXT, _get_candidate_text(c["_candidate"]))
@@ -68,9 +73,10 @@ def run_semantic_scoring(scored_candidates: list, top_n: int = 500) -> list:
     print(f"  Scoring {len(pairs)} candidates...")
     raw_scores = model.predict(pairs, batch_size=32, show_progress_bar=True)
 
-    # Normalise to 0–100
-    lo, hi  = float(np.min(raw_scores)), float(np.max(raw_scores))
-    span    = hi - lo if hi != lo else 1.0
+    # Normalise to 0-100
+    lo, hi = float(np.min(raw_scores)), float(np.max(raw_scores))
+    span   = hi - lo if hi != lo else 1.0
+
     for i, entry in enumerate(top):
         entry["semantic_score"] = round((float(raw_scores[i]) - lo) / span * 100, 2)
 
