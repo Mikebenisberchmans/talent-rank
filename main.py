@@ -94,15 +94,12 @@ def run_pipeline(
     for entry in top:
         c = entry["_candidate"]
         rows.append({
-            "rank":             entry["rank"],
+
             "candidate_id":     entry["candidate_id"],
-            "final_score":      entry["final_score"],
+            "rank":             entry["rank"],
+            "score":      entry["final_score"],
             "reasoning":        generate_reasoning(c),
-            "skill_score":      entry["skill_score"],
-            "career_score":     entry["career_score"],
-            "behavioral_score": entry["behavioral_score"],
-            "semantic_score":   entry["semantic_score"],
-        })
+            })
 
     # ── Write CSV ─────────────────────────────────────────────────────────────
     with open(output_path, "w", newline="", encoding="utf-8") as f:

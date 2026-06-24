@@ -27,8 +27,8 @@ def _full_text(candidate: dict) -> str:
     """All free-text fields concatenated and lowercased."""
     parts = [candidate.get("profile", {}).get("summary", "")]
     for job in candidate.get("career_history", []):
-        parts.append(job.get("description", ""))
         parts.append(job.get("title", ""))
+        parts.append(job.get("description", ""))
     for s in candidate.get("skills", []):
         parts.append(s.get("name", ""))
     return " ".join(parts).lower()
